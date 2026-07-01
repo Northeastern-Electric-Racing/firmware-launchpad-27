@@ -1,6 +1,6 @@
 # this toolchain should match the stable in emabssy rs, with only the target for this repo
 [toolchain]
-channel = "1.97"
+channel = "1.98"
 components = [ "rust-src", "rustfmt", "llvm-tools", "rust-analyzer", "clippy" ]
 targets = [
     "thumbv7em-none-eabihf",
