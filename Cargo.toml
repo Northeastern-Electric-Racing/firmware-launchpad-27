@@ -1,0 +1,14 @@
+[package]
+name = "firmwarelaunchpad-2026"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+embassy-executor = { version = "0.10.0", features = ["defmt", "executor-thread", "executor-interrupt", "platform-cortex-m"] }
+embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32f405zg", "memory-x", "unstable-pac"] }
+embassy-time = { version = "0.5.1", features = ["defmt"] }
+
+defmt = "1"
+defmt-rtt = "1"
+cortex-m = { version = "0.7", features = ["inline-asm", "critical-section-single-core"] }
+cortex-m-rt = "0.7"
