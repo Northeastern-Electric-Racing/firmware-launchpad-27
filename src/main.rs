@@ -5,11 +5,14 @@ use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_stm32::exti::InterruptHandler;
+use embassy_futures::select::Either::{First, Second};
+use embassy_futures::select::select;
+use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
+use embassy_stm32::gpio::{Level, Output, Input, Speed, Pull};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -41,22 +44,41 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
+    let mut enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
+    let mut speedom_led = Output::new(p.PC9, Level::Low, Speed::Low);
+    
+    let mut break_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+    let mut drive_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+
+    loop {
+        let brake_fut = break_button.wait_for_rising_edge();
+        let drive_fut = drive_button.wait_for_rising_edge();
+
+        match select(brake_fut, drive_fut).await {
+            First(_) => {
+                speedom_led.toggle()
+            }
+            Second(_) => {
+                enable_led.toggle()
+            }
+        }
+    }
 
     // TODO: Initialize button inputs
 
     // Init IWDG
-    let mut alt = false;
+    //let mut alt = false;
 
     // Loop for petting IWDG
-    loop {
-        if !alt {
-            info!(".");
-        } else {
-            info!("..");
-        }
-        alt = !alt;
-        Timer::after_millis(100).await;
-    }
+    // loop {
+    //     if !alt {
+    //         info!(".");
+    //     } else {
+    //         info!("..");
+    //     }
+    //     alt = !alt;
+    //     Timer::after_millis(100).await;
+    // }
 }
 
 #[exception]
