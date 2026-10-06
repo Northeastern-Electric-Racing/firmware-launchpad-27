@@ -5,12 +5,14 @@ use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_stm32::exti::InterruptHandler;
+use embassy_stm32::exti::{ExtiInput, InterruptHandler};
+use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
 use embassy_time::Timer;
+use embassy_futures::select::{select, Either};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct ExtiIrqs {
@@ -30,7 +32,7 @@ bind_interrupts!(struct AdcIrqs {
 });
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
+async fn main(_spawner: Spawner) {
     // Create a config for STM32F4
     let config = Config::default();
 
@@ -41,14 +43,33 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
+    let mut enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
+    let mut speedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
 
     // TODO: Initialize button inputs
+    let mut drive_button  = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let mut brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
 
     // Init IWDG
-    let mut alt = false;
+    let mut _alt = false;
 
     // Loop for petting IWDG
     loop {
+        match select(
+            drive_button.wait_for_rising_edge(), 
+            brake_button.wait_for_rising_edge(),
+        ).await {
+            Either::First(_a) => {
+                enable_led.set_high();
+            }
+            Either::Second(_a) => {
+                speedometer_led.set_high();
+            }
+        }
+        Timer::after_millis(500).await;
+        enable_led.set_low();
+        speedometer_led.set_low();
+        /*
         if !alt {
             info!(".");
         } else {
@@ -56,6 +77,7 @@ async fn main(spawner: Spawner) {
         }
         alt = !alt;
         Timer::after_millis(100).await;
+        */
     }
 }
 
