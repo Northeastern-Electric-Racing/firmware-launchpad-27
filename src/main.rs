@@ -5,7 +5,9 @@ use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
 use embassy_stm32::exti::InterruptHandler;
+use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
@@ -41,8 +43,23 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
+    let mut led1 = Output::new(p.PC8, Level::Low, Speed::Low);
+    let mut led2 = Output::new(p.PC9, Level::Low, Speed::Low);
 
     // TODO: Initialize button inputs
+    let mut drive = embassy_stm32::exti::ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let mut brake = embassy_stm32::exti::ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+
+    loop {
+        match select(drive.wait_for_falling_edge(), brake.wait_for_falling_edge()).await {
+            Either::First(_) => {
+                led1.toggle();
+            } 
+            Either::Second(_) => {
+                led2.toggle();
+            }
+        }
+    }
 
     // Init IWDG
     let mut alt = false;
