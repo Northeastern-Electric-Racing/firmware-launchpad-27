@@ -55,20 +55,28 @@ async fn main(_spawner: Spawner) {
 
     // Loop for petting IWDG
     loop {
+
         match select(
             drive_button.wait_for_rising_edge(), 
             brake_button.wait_for_rising_edge(),
-        ).await {
+        ).await{
             Either::First(_a) => {
-                enable_led.set_high();
+                if drive_button.is_high(){
+                    enable_led.set_high();
+                }
+                else {
+                    enable_led.set_low();
+                }
             }
-            Either::Second(_a) => {
-                speedometer_led.set_high();
+            Either::Second(_b) => {
+                if brake_button.is_high() {
+                    speedometer_led.set_high();
+                }
+                else {
+                    speedometer_led.set_low();
+                }
             }
         }
-        Timer::after_millis(500).await;
-        enable_led.set_low();
-        speedometer_led.set_low();
         /*
         if !alt {
             info!(".");
