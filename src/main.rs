@@ -51,17 +51,31 @@ async fn main(spawner: Spawner) {
     let mut brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
        
     loop {
-        let brake = brake_button.wait_for_falling_edge();
-        let drive = drive_button.wait_for_falling_edge();
+        let brake = brake_button.wait_for_any_edge();
+        let drive = drive_button.wait_for_any_edge();
  
         match select(brake, drive).await {
             First(_) => {
                 info!("Brake pressed");
-                speedometer_led.toggle();
+                speedometer_led.set_level(
+                    if brake_button.is_low() {
+                        {Level::High}
+                    }
+                    else{
+                        {Level::Low}
+                    }
+                );
             }
             Second(_) => {
                 info!("Drive pressed");
-                enable_led.toggle();
+                enable_led.set_level(
+                    if drive_button.is_low(){
+                        {Level::High}
+                    }
+                    else{
+                        {Level::Low}
+                    }
+                );
             }
         }
     }
