@@ -244,7 +244,6 @@ async fn pedal_task(
     let adc = Adc::new(adc);
     let pedal = pin.degrade_adc();
  
-    // Lives inside this task's future, so it stays valid as long as the task runs.
     let mut dma_buf = [0u16; 256];
  
     let mut ring = adc.into_ring_buffered(
@@ -252,8 +251,8 @@ async fn pedal_task(
         &mut dma_buf,
         AdcIrqs,
         [(pedal, SampleTime::CYCLES144)].into_iter(),
-        CONTINUOUS,      // free-running conversions
-        Exten::DISABLED, // ignored for CONTINUOUS, but still required
+        CONTINUOUS,
+        Exten::DISABLED,
     );
  
     let mut samples = [0u16; 128]; // must be exactly half of dma_buf
@@ -261,16 +260,17 @@ async fn pedal_task(
     loop {
         match ring.read(&mut samples).await {
             Ok(n) if n > 0 => {
-                // Newest reading. 12-bit ADC: 0..=4095 -> 0..=100%.
-                let raw = samples[n - 1] as u32;
-                let pct = raw * 100 / 4095;
+                // Average the batch, then convert to percent.
+                let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
+                let avg = sum / n as u32;
+                let pct = avg * 100 / 4095; 
                 info!("pedal: {}%", pct);
             }
             Ok(_) => {}
             Err(_) => info!("ADC ring buffer overrun"),
         }
-        Timer::after_millis(300).await;
-    }
+    Timer::after_millis(300).await;
+}
 }
 
 #[embassy_executor::main]
