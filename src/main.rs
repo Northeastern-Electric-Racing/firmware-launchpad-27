@@ -174,15 +174,16 @@ impl MiniCar {
 //     let mut last_pct = u8::MAX;
  
 //     loop {
-//         Timer::after_millis(20).await;
-//         let n = ring.read_latest(&mut samples);
-//         if n > 0 {
-//             let raw = samples[n - 1] as u32;
-//             let pct = (raw * 100 / 4095) as u8;
-//             if pct != last_pct {
-//                 last_pct = pct;
-//                 PEDAL_PCT.signal(pct);
+//         match ring.read(&mut samples).await {
+//             Ok(n) if n > 0 => {
+//                 // Average the batch, then convert to percent.
+//                 let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
+//                 let avg = sum / n as u32;
+//                 let pct = avg * 100 / 4095; 
+//                 info!("pedal: {}%", pct);
 //             }
+//             Ok(_) => {}
+//             Err(_) => info!("ADC ring buffer overrun"),
 //         }
 //         Timer::after_millis(300).await;   
 //     }
