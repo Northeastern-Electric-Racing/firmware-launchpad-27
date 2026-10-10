@@ -225,13 +225,17 @@ async fn buttons_task(
     mut speedom_led: Output<'static>,
     mut enable_led: Output<'static>,
 ) {
+    // Sync LEDs to the initial button state
+    speedom_led.set_level(brake_button.is_high().into());
+    enable_led.set_level(drive_button.is_high().into());
+
     loop {
-        let brake_fut = brake_button.wait_for_rising_edge();
-        let drive_fut = drive_button.wait_for_rising_edge();
- 
+        let brake_fut = brake_button.wait_for_any_edge();
+        let drive_fut = drive_button.wait_for_any_edge();
+
         match select(brake_fut, drive_fut).await {
-            First(_) => speedom_led.toggle(),
-            Second(_) => enable_led.toggle(),
+            First(_) => speedom_led.set_level(brake_button.is_high().into()),
+            Second(_) => enable_led.set_level(drive_button.is_high().into()),
         }
     }
 }
