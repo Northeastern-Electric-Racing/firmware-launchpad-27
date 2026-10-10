@@ -112,7 +112,6 @@ impl MiniCar {
             }
             Button::Reverse => {
                 self.reverse = !self.reverse;
-                self.velocity = -self.velocity;
             }
         }
     }
@@ -146,7 +145,6 @@ impl MiniCar {
 //         };
  
 //         BUTTONS.send(button).await;
-//         Timer::after_millis(30).await;
 //     }
 // }
 
