@@ -62,7 +62,7 @@ async fn main(spawner: Spawner) {
     let mut reverse = embassy_stm32::exti::ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
 
     //Initialize ADC input 
-    let mut adc = Adc::new(p.ADC1);
+    let mut adc = Adc::new(p.ADC1, AdcConfig::default());
     
     //create buffer
     let dma_buf = DMA_BUF.init([0u16; 32]);
