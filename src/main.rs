@@ -16,6 +16,13 @@ use embassy_stm32::{
 };
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
+use static_cell::StaticCell;
+static DMA_BUF: StaticCell<[u16; 32]> = StaticCell::new();
+
+mod button;
+mod led;
+mod potentiometer;
+mod minicar;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
@@ -33,24 +40,6 @@ bind_interrupts!(struct AdcIrqs {
     DMA2_STREAM0 => dma::InterruptHandler<peripherals::DMA2_CH0>;
 });
 
-#[embassy_executor::task]
-async fn button_task(
-    mut led1: Output<'static>,
-    mut led2: Output<'static>,
-    mut drive: ExtiInput<'static, Async>,
-    mut brake: ExtiInput<'static, Async>,
-) {
-    loop {
-        match select(drive.wait_for_falling_edge(), brake.wait_for_falling_edge()).await {
-            Either::First(_) => {
-                led1.toggle();
-            } 
-            Either::Second(_) => {
-                led2.toggle();
-            }
-        }
-    }
-}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -70,34 +59,25 @@ async fn main(spawner: Spawner) {
     // TODO: Initialize button inputs
     let mut drive = embassy_stm32::exti::ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
     let mut brake = embassy_stm32::exti::ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
-
-    spawner.spawn(button_task(led1, led2, drive, brake).unwrap());
-
+    let mut reverse = embassy_stm32::exti::ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
 
     //Initialize ADC input 
     let mut adc = Adc::new(p.ADC1);
     
     //create buffer
-    let mut dma_buf = [0u16; 128];
-    let mut readings = [0u16; 64];
+    let dma_buf = DMA_BUF.init([0u16; 32]);
 
     //turn pin PA3 into ADC channel
     let mut pot = p.PA3.degrade_adc();
 
     //build ring-buffered ADC
-    let mut ring = adc.into_ring_buffered(p.DMA2_CH0, &mut dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES84)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);
+    let mut ring = adc.into_ring_buffered(p.DMA2_CH0, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES84)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);    
     
-    //reading a batch
-    loop {
-        match ring.read(&mut readings).await {
-        Ok(n) => { let total: u32 = readings[..n].iter().map(|&x| x as u32).sum();
-                          let avg = total as f32/ n as f32;
-                          let percent = avg / 4095.0 * 100.0;
-                        info!("pot: {}%", percent);}
-        Err(_) => { /* the ADC got ahead of you */ }
-        }
-    }
-    
+    //call other tasks
+    spawner.spawn(button::button_task(reverse, drive, brake).unwrap());
+    spawner.spawn(potentiometer::potentiometer_task(ring).unwrap());
+    spawner.spawn(led::led_task(led1, led2).unwrap());
+    spawner.spawn(minicar::state_machine_task().unwrap());
 
     // Init IWDG
     let mut alt = false;
