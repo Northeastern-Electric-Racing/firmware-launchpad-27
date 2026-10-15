@@ -6,7 +6,7 @@ use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
-use embassy_stm32::adc::{Adc, AdcChannel, CONTINUOUS, Exten, SampleTime};
+use embassy_stm32::adc::{Adc, AdcChannel, AdcConfig, CONTINUOUS, Exten, SampleTime};
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::mode::Async;
@@ -29,15 +29,15 @@ bind_interrupts!(struct ExtiIrqs {
     EXTI15_10 => InterruptHandler<interrupt::typelevel::EXTI15_10>;
 });
 
-bind_interrupts!(struct I2cIrqs {
-    DMA1_STREAM2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
-    DMA1_STREAM7 => dma::InterruptHandler<peripherals::DMA1_CH7>;
-    I2C2_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C2>;
-    I2C2_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C2>;
-});
+//bind_interrupts!(struct I2cIrqs {
+  //DMA1_STREAM2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
+    //DMA1_STREAM7 => dma::InterruptHandler<peripherals::DMA1_CH7>;
+    //I2C2_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C2>;
+    //I2C2_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C2>;
+//});
 
 bind_interrupts!(struct AdcIrqs {
-    DMA2_STREAM0 => dma::InterruptHandler<peripherals::DMA2_CH0>;
+    DMA2_CHANNEL1 => dma::InterruptHandler<peripherals::DMA2_CH1>;
 });
 
 
@@ -71,7 +71,7 @@ async fn main(spawner: Spawner) {
     let mut pot = p.PA3.degrade_adc();
 
     //build ring-buffered ADC
-    let mut ring = adc.into_ring_buffered(p.DMA2_CH0, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES84)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);    
+    let mut ring = adc.into_ring_buffered(p.DMA2_CH1, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES47_5)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);    
     
     //call other tasks
     spawner.spawn(button::button_task(reverse, drive, brake).unwrap());
