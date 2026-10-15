@@ -3,16 +3,15 @@
 
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
-use defmt::info;
+use defmt::{info};
 use embassy_executor::Spawner;
+use embassy_stm32::adc::{Adc, AdcChannel, CONTINUOUS, Exten, SampleTime};
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
-use embassy_time::Timer;
-use embassy_futures::select::{select, Either};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct ExtiIrqs {
@@ -42,50 +41,51 @@ async fn main(_spawner: Spawner) {
     // *** FIRMWARE LAUNCHPAD: START HERE! ***
     info!("Welcome to Firmware Launchpad!");
 
-    // TODO: Initialize LED outputs
-    let mut enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
-    let mut speedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
+    // Initialize LED outputs
+    let mut _enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
+    let mut _speedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
 
-    // TODO: Initialize button inputs
-    let mut drive_button  = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
-    let mut brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+    // Initialize button inputs
+    let mut _drive_button  = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let mut _brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+
+    //Init ADC and DMA
+    const ADC_SAMPLE: usize = 16;
+    const MAX_RESOLUTION: f32 = 4095.0;
+    let adc = Adc::new(p.ADC1);
+    let mut dma_adc_buf = [0u16; ADC_SAMPLE*2];
+    let mut measurements = [0u16; ADC_SAMPLE*2];
+
+    let mut adc = adc.into_ring_buffered(
+        p.DMA2_CH0, 
+        &mut dma_adc_buf,
+        AdcIrqs,
+        [(p.PA3.degrade_adc(), SampleTime::CYCLES480)].into_iter(),
+        CONTINUOUS,
+        Exten::DISABLED
+    );
+
 
     // Init IWDG
     let mut _alt = false;
 
     // Loop for petting IWDG
     loop {
-
-        match select(
-            drive_button.wait_for_rising_edge(), 
-            brake_button.wait_for_rising_edge(),
-        ).await{
-            Either::First(_a) => {
-                if drive_button.is_high(){
-                    enable_led.set_high();
+        adc.clear();
+        match adc.read(&mut measurements).await {
+            Ok(_)=> {
+                let mut average: f32 = 0.0;
+                for i in 1..ADC_SAMPLE{
+                    average = average + (measurements[i] as f32 / MAX_RESOLUTION);
                 }
-                else {
-                    enable_led.set_low();
-                }
+                average = average / (ADC_SAMPLE as f32);
+                info!("Potentiometer at {}%", average*100.0);
             }
-            Either::Second(_b) => {
-                if brake_button.is_high() {
-                    speedometer_led.set_high();
-                }
-                else {
-                    speedometer_led.set_low();
-                }
+            Err(e) => {
+                info!("Error {} occured", e);
             }
         }
-        /*
-        if !alt {
-            info!(".");
-        } else {
-            info!("..");
-        }
-        alt = !alt;
-        Timer::after_millis(100).await;
-        */
+        
     }
 }
 
