@@ -143,46 +143,8 @@ impl MiniCar {
 //             Either3::Second(_) => Button::Brake,
 //             Either3::Third(_) => Button::Reverse,
 //         };
- 
+
 //         BUTTONS.send(button).await;
-//     }
-// }
-
-// #[embassy_executor::task]
-// async fn pedal_task(
-//     adc: Peri<'static, peripherals::ADC1>,
-//     pin: Peri<'static, peripherals::PA3>,
-//     dma: Peri<'static, peripherals::DMA2_CH0>,
-// ) {
-//     let adc = Adc::new(adc);
-//     let pedal = pin.degrade_adc();
-//     let mut dma_buf = [0u16; 256];
-//     let mut ring = adc.into_ring_buffered(
-//         dma,
-//         &mut dma_buf,
-//         AdcIrqs,
-//         [(pedal, SampleTime::CYCLES144)].into_iter(),
-//         CONTINUOUS,
-//         Exten::DISABLED,
-//     );
-
-//     ring.start();
-
-//     let mut samples = [0u16; 8];
-//     let mut last_pct = u8::MAX;
- 
-//     loop {
-//         match ring.read(&mut samples).await {
-//             Ok(n) if n > 0 => {
-//                 let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
-//                 let avg = sum / n as u32;
-//                 let pct = avg * 100 / 4095; 
-//                 info!("pedal: {}%", pct);
-//             }
-//             Ok(_) => {}
-//             Err(_) => info!("ADC ring buffer overrun"),
-//         }
-//         Timer::after_millis(300).await;   
 //     }
 // }
 
