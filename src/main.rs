@@ -174,7 +174,6 @@ impl MiniCar {
 //     loop {
 //         match ring.read(&mut samples).await {
 //             Ok(n) if n > 0 => {
-//                 // Average the batch, then convert to percent.
 //                 let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
 //                 let avg = sum / n as u32;
 //                 let pct = avg * 100 / 4095; 
@@ -259,7 +258,6 @@ async fn pedal_task(
     loop {
         match ring.read(&mut samples).await {
             Ok(n) if n > 0 => {
-                // Average the batch, then convert to percent.
                 let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
                 let avg = sum / n as u32;
                 let pct = avg * 100 / 4095; 
