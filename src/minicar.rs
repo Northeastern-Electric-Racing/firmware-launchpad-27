@@ -17,7 +17,7 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 use defmt::info;
-use crate::led::BLINK_PERIOD_SIGNAL;
+use crate::led::{BLINK_PERIOD_SIGNAL, DIRECTION_SIGNAL};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -108,9 +108,14 @@ pub async fn state_machine_task() {
     loop {
         match select(BUTTON_SIGNAL.wait(), POTENTIOMETER_SIGNAL.wait()).await {
             Either::First(button) => {
-                minicar.handle_button(button);
-                BLINK_PERIOD_SIGNAL.signal(minicar.blink_period_ms());
-                info!("velocity: {}", minicar.velocity);
+            let old_direction = minicar.direction;
+            minicar.handle_button(button);
+            if minicar.direction != old_direction {
+                DIRECTION_SIGNAL.signal(minicar.direction == Reverse);
+            }
+            BLINK_PERIOD_SIGNAL.signal(minicar.blink_period_ms());
+            info!("velocity: {}", minicar.velocity);
+            
             }
             Either::Second(percent) => {
                 minicar.update_gear(percent);
