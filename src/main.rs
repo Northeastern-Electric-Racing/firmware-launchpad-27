@@ -46,14 +46,14 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
-    let enable_led = Output::new(p.PB0, Level::Low, Speed::Low);      // placeholder pin
-    let spedometer_led = Output::new(p.PB1, Level::Low, Speed::Low);  // placeholder pin
+    let enable_led = Output::new(p.PC8, Level::Low, Speed::Low);      
+    let spedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);  
 
     // TODO: Initialize button inputs
-    let dir_button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up, ExtiIrqs);    // placeholders
-    let accel_button = ExtiInput::new(p.PC12, p.EXTI12, Pull::Up, ExtiIrqs);
-    let brake_button = ExtiInput::new(p.PC11, p.EXTI11, Pull::Up, ExtiIrqs);
-    
+    let dir_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);    
+    let accel_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let brake_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
+
     spawner.spawn(led::led_task(enable_led, spedometer_led).unwrap());
     spawner.spawn(button::button_task(dir_button, accel_button, brake_button).unwrap());
     spawner.spawn(minicar::state_machine_task().unwrap());
