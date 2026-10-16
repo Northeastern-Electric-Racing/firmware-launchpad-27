@@ -22,7 +22,6 @@ pub async fn potentiometer_task(
     adc_pin: AnyAdcChannel<'static, ADC1>,
     dma: Peri<'static, DMA2_CH0>,
 ) {
-    // TODO: Complete Potentiometer Task
     let mut dma_adc_buf = [0u16; SAMPLES*2];
 
     let mut adc = adc.into_ring_buffered(
@@ -41,10 +40,10 @@ pub async fn potentiometer_task(
         match adc.read(&mut measurements).await {
             Ok(_)=> {
                 let mut average: f32 = 0.0;
-                for i in 1..SAMPLES{
-                    average = average + (measurements[i] as f32 / MAX_TWELVE_BIT_RESOLUTION);
+                for i in measurements.iter().take(SAMPLES).skip(1){
+                    average += *i as f32 / MAX_TWELVE_BIT_RESOLUTION;
                 }
-                average = average / (SAMPLES as f32);
+                average /= SAMPLES as f32;
                 POTENTIOMETER_SIGNAL.signal(average);
             }
             Err(e) => {

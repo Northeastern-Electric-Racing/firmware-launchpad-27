@@ -27,7 +27,6 @@ pub async fn button_task(
         let accel_event = accel_button.wait_for_falling_edge();
         let brake_event = brake_button.wait_for_falling_edge();
 
-        // TODO: Complete Button Task
         match select3(
             dir_event,
             accel_event,

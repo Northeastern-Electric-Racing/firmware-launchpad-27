@@ -16,8 +16,7 @@ use crate::{
 };
 use defmt::warn;
 use embassy_futures::select::{Either, select};
-//use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-//use embassy_time::Timer;
+
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -49,20 +48,19 @@ impl Minicar {
         }
     }
 
-    // TODO: Complete the Minicar implementation!
     fn accelerate(&mut self) {
         match self.gear {
             Gear1 => {
-                self.velocity = self.velocity + 5;
+                self.velocity += 5;
             }
             Gear2 => {
-                self.velocity = self.velocity + 10;
+                self.velocity += 10;
             }
             Gear3 => {
-                self.velocity = self.velocity + 20;
+                self.velocity += 20;
             }
             Gear4 => {
-                self.velocity = self.velocity + 35;
+                self.velocity += 35;
             }
         }
         if self.velocity > 100 {
@@ -71,7 +69,7 @@ impl Minicar {
     }
 
     fn brake(&mut self) {
-        self.velocity = self.velocity - 20;
+        self.velocity -= 20;
         if self.velocity < 0 {
             self.velocity = 0;
         }
@@ -112,24 +110,50 @@ impl Minicar {
                 LIGHT_SIGNAL.signal(Off);
             }
             false => {
-                match self.velocity {
-                    v if v == 0 => {
-                        LIGHT_SIGNAL.signal(Stationary);
+                match self.direction {
+                    Forward => {
+                        match self.velocity {
+                            0 => {
+                                LIGHT_SIGNAL.signal(Stationary);
+                            }
+                            v if v < 25 => {
+                                LIGHT_SIGNAL.signal(Speed1);
+                            }
+                            v if v < 50 => {
+                                LIGHT_SIGNAL.signal(Speed2);
+                            }
+                            v if v < 75 => {
+                                LIGHT_SIGNAL.signal(Speed3);
+                            }
+                            v if v <= 100 => {
+                                LIGHT_SIGNAL.signal(Speed4);
+                            }
+                            v => {
+                                warn!("Improper velocity value {}", v);
+                            }
+                        }
                     }
-                    v if v < 25 => {
-                        LIGHT_SIGNAL.signal(Speed1);
-                    }
-                    v if v < 50 => {
-                        LIGHT_SIGNAL.signal(Speed2);
-                    }
-                    v if v < 75 => {
-                        LIGHT_SIGNAL.signal(Speed3);
-                    }
-                    v if v <= 100 => {
-                        LIGHT_SIGNAL.signal(Speed4);
-                    }
-                    v => {
-                        warn!("Improper velocity value {}", v);
+                    Reverse => {
+                        match self.velocity {
+                            0 => {
+                                LIGHT_SIGNAL.signal(StationaryReverse);
+                            }
+                            v if v < 25 => {
+                                LIGHT_SIGNAL.signal(Speed1Reverse);
+                            }
+                            v if v < 50 => {
+                                LIGHT_SIGNAL.signal(Speed2Reverse);
+                            }
+                            v if v < 75 => {
+                                LIGHT_SIGNAL.signal(Speed3Reverse);
+                            }
+                            v if v <= 100 => {
+                                LIGHT_SIGNAL.signal(Speed4Reverse);
+                            }
+                            v => {
+                                warn!("Improper velocity value {}", v);
+                            }
+                        }
                     }
                 }
             }
@@ -144,7 +168,6 @@ pub async fn state_machine_task() {
     minicar.update_light_signals();
 
     loop {
-        // TODO: Complete State Machine Task
         match select (
             BUTTON_SIGNAL.wait(),
             POTENTIOMETER_SIGNAL.wait(),
