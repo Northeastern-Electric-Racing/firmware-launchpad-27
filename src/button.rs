@@ -1,31 +1,38 @@
 
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
+use embassy_futures::select::{Either3, select3};
 use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::signal::Signal;
+use embassy_sync::channel::Channel;
 
-use crate::button::ButtonType::{Accelerate, Brake, Direction};
-
-pub enum ButtonType {
-    Direction,
-    Accelerate,
+pub enum Button {
+    Drive,
     Brake,
+    Reverse,
 }
 
-pub static BUTTON_SIGNAL: Signal<CriticalSectionRawMutex, ButtonType> = Signal::new();
+pub static BUTTONS: Channel<CriticalSectionRawMutex, Button, 4> = Channel::new();
 
 #[embassy_executor::task]
 pub async fn button_task(
-    mut dir_button: ExtiInput<'static, Async>,
-    mut accel_button: ExtiInput<'static, Async>,
-    mut brake_button: ExtiInput<'static, Async>,
+    mut drive: ExtiInput<'static, Async>,
+    mut brake: ExtiInput<'static, Async>,
+    mut reverse: ExtiInput<'static, Async>
 ) {
     loop {
-        let dir_event = dir_button.wait_for_falling_edge();
-        let accel_event = accel_button.wait_for_falling_edge();
-        let brake_event = brake_button.wait_for_falling_edge();
+        let button = match select3(
+            drive.wait_for_rising_edge(),
+            brake.wait_for_rising_edge(),
+            reverse.wait_for_rising_edge(),
+        )
+        .await
+        {
+            Either3::First(_) => Button::Drive,
+            Either3::Second(_) => Button::Brake,
+            Either3::Third(_) => Button::Reverse,
+        };
 
-        // TODO: Complete Button Task
+        BUTTONS.send(button).await;
     }
 }
