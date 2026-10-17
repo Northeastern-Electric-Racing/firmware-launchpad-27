@@ -1,22 +1,28 @@
 #![no_std]
 #![no_main]
 
+mod button;
+mod led;
+mod minicar;
+mod potentiometer;
+
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
-use defmt::{info, warn};
+use defmt::info;
 use embassy_executor::Spawner;
-use embassy_futures::select::select;
-use embassy_futures::select::Either::{First, Second};
 use embassy_stm32::adc::{Adc, AdcChannel, RegularConversionMode, SampleTime};
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
-use embassy_stm32::mode::Async;
 use embassy_stm32::{
-    Config, Peri, bind_interrupts, dma, interrupt,
+    Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
-use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
+
+use button::button_task;
+use led::led_task;
+use minicar::state_machine_task;
+use potentiometer::potentiometer_task;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
@@ -46,95 +52,28 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
-    // let enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
-    // let speedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
+    let enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
+    let speedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
 
     // TODO: Initialize button inputs
-    // let drive_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
-    // let brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+    let reverse_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
+    let drive_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
 
-    //Task-1 commented now
-    // buttons(enable_led, speedometer_led, drive_button, brake_button).await;
-
-    //Task-2 
-    potentiometer(p.ADC1, p.DMA2_CH0, p.PA3).await;
-}
-
-async fn buttons(
-    mut enable_led: Output<'_>,
-    mut speedometer_led: Output<'_>,
-    mut drive_button: ExtiInput<'_, Async>,
-    mut brake_button: ExtiInput<'_, Async>,
-) {
-    loop {
-        let brake = brake_button.wait_for_any_edge();
-        let drive = drive_button.wait_for_any_edge();
-
-        match select(brake, drive).await {
-            First(_) => {
-                Timer::after_millis(20).await;
-                info!("Brake pressed");
-                speedometer_led.set_level(
-                    if brake_button.is_low() {
-                        {Level::High}
-                    } else{
-                        {Level::Low}
-                    }
-                );
-            }
-            Second(_) => {
-                Timer::after_millis(20).await;
-                info!("Drive pressed");
-                enable_led.set_level(
-                    if drive_button.is_low() { 
-                        {Level::High} 
-                    } else{ 
-                        {Level::Low}
-                    }
-                );
-            }
-        }
-    }
-}
-
-async fn potentiometer(
-    adc1: Peri<'_, peripherals::ADC1>,
-    dma: Peri<'_, peripherals::DMA2_CH0>,
-    pot_pin: Peri<'_, peripherals::PA3>,
-) {
-    const DMA_BUF_LEN: usize = 64;
-    let mut dma_buf = [0u16; DMA_BUF_LEN];
-    let mut samples = [0u16; DMA_BUF_LEN / 2];
-
-    let adc = Adc::new_with_config(adc1, Default::default());
-    let mut pot = adc.into_ring_buffered(
-        dma,
-        &mut dma_buf,
+    let dma_buf = cortex_m::singleton!(ADC_BUF: [u16; 32] = [0u16; 32]).unwrap();
+    let adc = Adc::new_with_config(p.ADC1, Default::default());
+    let pot = adc.into_ring_buffered(
+        p.DMA2_CH0,
+        dma_buf,
         AdcIrqs,
-        [(pot_pin.degrade_adc(), SampleTime::CYCLES480)].into_iter(),
+        [(p.PA3.degrade_adc(), SampleTime::CYCLES480)].into_iter(),
         RegularConversionMode::Continuous,
     );
-    pot.start();
 
-    let mut count: u32 = 0;
-    loop {
-        match pot.read(&mut samples).await {
-            Ok(_) => {
-                let sum: u32 = samples.iter().map(|&s| s as u32).sum();
-                let avg = sum / samples.len() as u32;
-                let percent = avg * 100 / 4095;
-
-                count += 1;
-                if count % 100 == 0 {
-                    info!("raw = {}, pot = {}%", avg, percent);
-                }
-            }
-            Err(_) => {
-                warn!("ADC overrun, restarting");
-                pot.start();
-            }
-        }
-    }
+    spawner.spawn(button_task(reverse_button, drive_button, brake_button).unwrap());
+    spawner.spawn(potentiometer_task(pot).unwrap());
+    spawner.spawn(led_task(enable_led, speedometer_led).unwrap());
+    spawner.spawn(state_machine_task().unwrap());
 }
 
 #[exception]
