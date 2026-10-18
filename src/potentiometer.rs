@@ -4,7 +4,6 @@
 use defmt::{info};
 use embassy_stm32::{Peri, adc::{Adc, AdcChannel, CONTINUOUS, Exten, SampleTime}, peripherals::{self}};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::Timer;
 
 use crate::AdcIrqs;
 
@@ -20,30 +19,35 @@ pub async fn potentiometer_task(
     let pedal = pin.degrade_adc();
  
     let mut dma_buf = [0u16; 256];
+    let mut samples = [0u16; 128]; // must be exactly half of dma_buf
  
     let mut ring = adc.into_ring_buffered(
         dma,
         &mut dma_buf,
         AdcIrqs,
-        [(pedal, SampleTime::CYCLES144)].into_iter(),
+        [(pedal, SampleTime::CYCLES480)].into_iter(),
         CONTINUOUS,
         Exten::DISABLED,
     );
- 
-    let mut samples = [0u16; 128]; // must be exactly half of dma_buf
- 
+
+    let mut count = 0u32;
+
     loop {
+        ring.clear();
         match ring.read(&mut samples).await {
-            Ok(n) if n > 0 => {
-                let sum: u32 = samples[..n].iter().map(|&s| s as u32).sum();
-                let avg = sum / n as u32;
-                let pct = avg * 100 / 4095; 
+            Ok(_remaining) => {
+                let sum: u32 = samples.iter().map(|&s| s as u32).sum();
+                let pct = sum / samples.len() as u32 * 100 / 4095;
                 PEDAL_PCT.signal(pct);
-                info!("pedal: {}%", pct);
+
+                count += 1;
+                if count % 20 == 0 {
+                    info!("pedal: {}%", pct);
+                }
             }
-            Ok(_) => {}
-            Err(_) => info!("ADC ring buffer overrun"),
+            Err(_) => {
+                defmt::warn!("ADC ring overrun");
+            }
         }
-    Timer::after_millis(300).await;
     }
 }

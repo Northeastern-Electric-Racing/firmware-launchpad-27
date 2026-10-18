@@ -16,7 +16,7 @@ use embassy_stm32::{
 use embassy_stm32::gpio::{Level, Output, Speed, Pull};
 use crate::potentiometer::potentiometer_task;
 use crate::led::led_task;
-use crate::button::button_task;
+use crate::button::{Button, button_task};
 use crate::minicar::car_task;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -75,14 +75,16 @@ async fn main(spawner: Spawner) {
     let reverse_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
  
     //Phase 3
-    // spawner.spawn(unwrap!(button_task(drive_button, brake_button, reverse_button)));
-    // spawner.spawn(unwrap!(potentiometer_task(p.ADC1, p.PA3, p.DMA2_CH0)));
-    // spawner.spawn(unwrap!(led_task(speedom_led, enable_led)));
-    // spawner.spawn(unwrap!(car_task()));
+    spawner.spawn(button_task(drive_button, Button::Drive).unwrap());
+    spawner.spawn(button_task(brake_button, Button::Brake).unwrap());
+    spawner.spawn(button_task(reverse_button, Button::Reverse).unwrap());
+    spawner.spawn(unwrap!(potentiometer_task(p.ADC1, p.PA3, p.DMA2_CH0)));
+    spawner.spawn(unwrap!(led_task(speedom_led, enable_led)));
+    spawner.spawn(unwrap!(car_task()));
     
     //Phase 1/2
-    spawner.spawn(unwrap!(buttons_task(brake_button, drive_button, speedom_led, enable_led)));
-    spawner.spawn(unwrap!(potentiometer_task(p.ADC1, p.PA3, p.DMA2_CH0)));
+    // spawner.spawn(unwrap!(buttons_task(brake_button, drive_button, speedom_led, enable_led)));
+    // spawner.spawn(unwrap!(potentiometer_task(p.ADC1, p.PA3, p.DMA2_CH0)));
 }
 
 #[exception]
