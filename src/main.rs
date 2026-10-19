@@ -28,6 +28,7 @@ mod button;
 mod led;
 mod potentiometer;
 mod minicar;
+mod temp;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
