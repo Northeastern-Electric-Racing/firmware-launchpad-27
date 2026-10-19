@@ -5,7 +5,7 @@ use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_futures::select::{Either, Either3, select3};
-
+use embassy_time::Timer;
 use crate::button::ButtonType::{Accelerate, Brake, Direction};
 
 pub enum ButtonType {
@@ -33,5 +33,6 @@ pub async fn button_task(
             Either3::Second(_) => BUTTON_SIGNAL.signal(Accelerate),
             Either3::Third(_) => BUTTON_SIGNAL.signal(Brake),
         }
+        Timer::after_millis(50).await;
     }
 }

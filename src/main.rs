@@ -14,10 +14,11 @@ use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
+use embassy_stm32::rcc::mux::Adcsel;
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 use static_cell::StaticCell;
-static DMA_BUF: StaticCell<[u16; 32]> = StaticCell::new();
+static DMA_BUF: StaticCell<[u16; 256]> = StaticCell::new();
 
 mod button;
 mod led;
@@ -44,8 +45,9 @@ bind_interrupts!(struct AdcIrqs {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // Create a config for STM32F4
-    let config = Config::default();
-
+    let mut config = Config::default();
+    config.rcc.mux.adc12sel = Adcsel::SYS;
+    
     // intialize peripherals
     let p = embassy_stm32::init(config);
 
@@ -60,24 +62,28 @@ async fn main(spawner: Spawner) {
     let mut drive = embassy_stm32::exti::ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
     let mut brake = embassy_stm32::exti::ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
     let mut reverse = embassy_stm32::exti::ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
+    info!("step 1: leds and buttons made");
 
     //Initialize ADC input 
     let mut adc = Adc::new(p.ADC1, AdcConfig::default());
+    info!("step 2: adc made");
     
     //create buffer
-    let dma_buf = DMA_BUF.init([0u16; 32]);
+    let dma_buf = DMA_BUF.init([0u16; 256]);
 
     //turn pin PA3 into ADC channel
-    let mut pot = p.PA3.degrade_adc();
+    let mut pot = p.PA0.degrade_adc();
 
     //build ring-buffered ADC
-    let mut ring = adc.into_ring_buffered(p.DMA2_CH1, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES47_5)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);    
+    let mut ring = adc.into_ring_buffered(p.DMA2_CH1, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES640_5)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);  
+    info!("step 3: ring built");  
     
     //call other tasks
     spawner.spawn(button::button_task(reverse, drive, brake).unwrap());
     spawner.spawn(potentiometer::potentiometer_task(ring).unwrap());
     spawner.spawn(led::led_task(led1, led2).unwrap());
     spawner.spawn(minicar::state_machine_task().unwrap());
+    info!("step 4: all tasks spawned");
 
     // Init IWDG
     let mut alt = false;
@@ -85,9 +91,9 @@ async fn main(spawner: Spawner) {
     // Loop for petting IWDG
     loop {
         if !alt {
-            info!(".");
+            //info!(".");
         } else {
-            info!("..");
+            //info!("..");
         }
         alt = !alt;
         Timer::after_millis(100).await;
