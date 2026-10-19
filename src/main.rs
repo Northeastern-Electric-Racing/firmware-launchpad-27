@@ -2,6 +2,7 @@
 #![no_main]
 
 use embassy_futures::select::{select3, Either3};
+use embassy_stm32::i2c::I2c;
 use embassy_time::{Duration, Ticker, Timer};
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
@@ -20,6 +21,7 @@ use crate::potentiometer::potentiometer_task;
 use crate::led::led_task;
 use crate::button::{Button, button_task};
 use crate::minicar::car_task;
+use crate::temp::temp_task;
 
 use {defmt_rtt as _, panic_probe as _};
 use defmt::unwrap;
@@ -78,14 +80,16 @@ async fn main(spawner: Spawner) {
     let brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
     let drive_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
     let reverse_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
- 
-    //Phase 3
+    let i2c = I2c::new(p.I2C2, p.PB10, p.PB11, p.DMA1_CH7, p.DMA1_CH2, I2cIrqs, Default::default());
+    
+    //Phase 3/4
     // spawner.spawn(button_task(drive_button, Button::Drive).unwrap());
     // spawner.spawn(button_task(brake_button, Button::Brake).unwrap());
     // spawner.spawn(button_task(reverse_button, Button::Reverse).unwrap());
     // spawner.spawn(unwrap!(potentiometer_task(p.ADC1, p.PA3, p.DMA2_CH0)));
     // spawner.spawn(unwrap!(led_task(speedom_led, enable_led)));
     // spawner.spawn(unwrap!(car_task()));
+    // spawner.spawn(unwrap!(temp_task(i2c)));
     
     //Phase 1/2
     spawner.spawn(unwrap!(buttons_task(brake_button, drive_button, speedom_led, enable_led)));

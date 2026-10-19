@@ -2,11 +2,12 @@
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 use crate::led::{BLINK_MS,REVERSE};
 use crate::potentiometer::PEDAL_PCT;
+use crate::temp::FAULT;
 use crate::{button::{
     BUTTONS,Button
 }};
 use defmt::info;
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{Either3, select3};
 
 const MAX_SPEED: i32 = 100;
 const BRAKE_STEP: i32 = 20;
@@ -89,11 +90,21 @@ impl MiniCar {
 pub async fn car_task() {
     let mut car = MiniCar::new();
     BLINK_MS.signal(car.blink_ms());
+    let mut fault = FAULT.receiver().unwrap();
+    let mut faulted = false;
  
     loop {
-        match select(BUTTONS.receive(), PEDAL_PCT.wait()).await {
-            Either::First(button) => car.on_button(button),
-            Either::Second(pct) => car.gear = Gear::from_percent(pct),
+        match select3(fault.changed(), BUTTONS.receive(), PEDAL_PCT.wait()).await {
+            Either3::First(f) => {
+                faulted = f;
+                car.velocity = 0;
+            }
+            Either3::Second(button) => {
+                if !faulted {
+                    car.on_button(button);
+                }
+            },
+            Either3::Third(pct) => car.gear = Gear::from_percent(pct),
         }
         BLINK_MS.signal(car.blink_ms());
         info!(
