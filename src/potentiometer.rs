@@ -2,7 +2,7 @@ use defmt::warn;
 use embassy_stm32::{adc::RingBufferedAdc, peripherals::ADC1};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 
-const SAMPLES: usize = 16;
+const SAMPLES: usize = 128;
 const MAX_TWELVE_BIT_RESOLUTION: f32 = 4095.0;
 
 pub static POTENTIOMETER_SIGNAL: Signal<CriticalSectionRawMutex, f32> = Signal::new();
