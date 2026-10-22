@@ -59,27 +59,17 @@ async fn main(spawner: Spawner) {
     spawner.spawn(minicar::state_machine_task().unwrap());
 
     // Init IWDG
-    let mut alt = false;
-    let mut wdg = IndependentWatchdog::new(p.IWDG, 1_000_000);wdg.unleash();
+    let mut wdg = IndependentWatchdog::new(p.IWDG, 1_000_000);
+wdg.unleash();
 
-
-    // Loop for petting IWDG
-    loop {
-        if !alt {
-            info!(".");
-        } else {
-            info!("..");
-        }
-        alt = !alt;
-        Timer::after_millis(100).await;
-    }
-    loop {
+loop {
     wdg.pet();
     Timer::after_millis(100).await;
-    }
+}
 }
 
 #[exception]
 unsafe fn HardFault(_info: &ExceptionFrame) -> ! {
     SCB::sys_reset(); // reset STM
 }
+
