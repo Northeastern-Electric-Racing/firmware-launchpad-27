@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 embassy-executor = { version = "0.10.0", features = ["defmt", "executor-thread", "executor-interrupt", "platform-cortex-m"] }
-embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32f405zg", "memory-x", "unstable-pac", "exti", "time-driver-any"] }
+embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32g474re", "memory-x", "unstable-pac", "exti", "single-bank", "time", "time-driver-any"] }
 embassy-time = { version = "0.5.1", features = ["defmt"] }
 
 defmt = "1"
@@ -17,5 +17,6 @@ embassy-futures = "0.1.2"
 lsm6dsv16x-rs = "2.1.0"
 embedded-hal-bus = { version = "0.3.0", features = ["async"] }
 embedded-hal-async = "1.0.0"
-embedded-sht3x = "0.2.0"
+embedded-sht3x = { version = "0.2.0", features = ["async"] }
 panic-probe = "1.0.0"
+static_cell = "2.1.1"
