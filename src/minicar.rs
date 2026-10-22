@@ -13,11 +13,13 @@ use crate::{
     },
     potentiometer::POTENTIOMETER_SIGNAL,
 };
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{Either3, select3};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 use defmt::info;
 use crate::led::{BLINK_PERIOD_SIGNAL, DIRECTION_SIGNAL};
+use crate::led::FAULT_SIGNAL;
+use crate::temp::TEMPERATURE_SIGNAL;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -64,7 +66,9 @@ impl Minicar {
     }
 
     fn handle_button(&mut self, button: ButtonType) {
-    match button {
+        if self.fault {
+        return; }
+        match button {
         Direction => {
             self.direction = if self.direction == Forward { Reverse } else { Forward };
         }
@@ -99,6 +103,15 @@ impl Minicar {
             500
         }
     }
+
+    fn update_temperature(&mut self, celsius: f32) {
+    if celsius > 35.0 {
+        self.fault = true;
+        self.velocity = 0;
+    } else if celsius < 35.0 {
+        self.fault = false;
+    }
+}
 }
 
 #[embassy_executor::task]
@@ -106,19 +119,33 @@ pub async fn state_machine_task() {
     let mut minicar = Minicar::new();
 
     loop {
-        match select(BUTTON_SIGNAL.wait(), POTENTIOMETER_SIGNAL.wait()).await {
-            Either::First(button) => {
-            let old_direction = minicar.direction;
-            minicar.handle_button(button);
-            if minicar.direction != old_direction {
-                DIRECTION_SIGNAL.signal(minicar.direction == Reverse);
+        match select3(
+            BUTTON_SIGNAL.wait(),
+            POTENTIOMETER_SIGNAL.wait(),
+            TEMPERATURE_SIGNAL.wait(),
+        )
+        .await
+        {
+            Either3::First(button) => {
+                let old_direction = minicar.direction;
+                minicar.handle_button(button);
+                if minicar.direction != old_direction {
+                    DIRECTION_SIGNAL.signal(minicar.direction == Reverse);
+                }
+                BLINK_PERIOD_SIGNAL.signal(minicar.blink_period_ms());
+                info!("velocity: {}", minicar.velocity);
             }
-            BLINK_PERIOD_SIGNAL.signal(minicar.blink_period_ms());
-            info!("velocity: {}", minicar.velocity);
-            
-            }
-            Either::Second(percent) => {
+            Either3::Second(percent) => {
                 minicar.update_gear(percent);
+            }
+            Either3::Third(celsius) => {
+                let was_fault = minicar.fault;
+                minicar.update_temperature(celsius);
+                if minicar.fault != was_fault {
+                    FAULT_SIGNAL.signal(minicar.fault);
+                    BLINK_PERIOD_SIGNAL.signal(minicar.blink_period_ms());
+                    info!("fault: {}, velocity: {}", minicar.fault, minicar.velocity);
+                }
             }
         }
     }

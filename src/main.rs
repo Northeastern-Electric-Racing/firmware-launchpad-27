@@ -24,18 +24,19 @@ mod button;
 mod led;
 mod potentiometer;
 mod minicar;
+mod temp;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
     EXTI15_10 => InterruptHandler<interrupt::typelevel::EXTI15_10>;
 });
 
-//bind_interrupts!(struct I2cIrqs {
-  //DMA1_STREAM2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
-    //DMA1_STREAM7 => dma::InterruptHandler<peripherals::DMA1_CH7>;
-    //I2C2_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C2>;
-    //I2C2_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C2>;
-//});
+bind_interrupts!(struct I2cIrqs {
+    I2C1_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C1>;
+    I2C1_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C1>;
+    DMA1_CHANNEL2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
+    DMA1_CHANNEL3 => dma::InterruptHandler<peripherals::DMA1_CH3>;
+});
 
 bind_interrupts!(struct AdcIrqs {
     DMA2_CHANNEL1 => dma::InterruptHandler<peripherals::DMA2_CH1>;
@@ -77,6 +78,17 @@ async fn main(spawner: Spawner) {
     //build ring-buffered ADC
     let mut ring = adc.into_ring_buffered(p.DMA2_CH1, dma_buf, AdcIrqs, [(pot, SampleTime::CYCLES640_5)].into_iter(), embassy_stm32::adc::CONTINUOUS, Exten::DISABLED);  
     info!("step 3: ring built");  
+
+    let i2c = embassy_stm32::i2c::I2c::new(
+        p.I2C1,
+        p.PB8,
+        p.PB9,
+        p.DMA1_CH2,
+        p.DMA1_CH3,
+        I2cIrqs,
+        embassy_stm32::i2c::Config::default(),
+    );
+    spawner.spawn(temp::temp_task(i2c).unwrap());
     
     //call other tasks
     spawner.spawn(button::button_task(reverse, drive, brake).unwrap());
