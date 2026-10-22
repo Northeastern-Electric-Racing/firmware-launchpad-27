@@ -1,5 +1,10 @@
 #![no_std]
 #![no_main]
+mod button; mod led; mod minicar; mod potentiometer; mod temp;
+
+use embassy_stm32::exti::ExtiInput;
+use embassy_stm32::gpio::{Level, Output, Pull, Speed};
+use embassy_stm32::wdg::IndependentWatchdog;
 
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
@@ -41,25 +46,30 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
+    let enable_led = Output::new(p.PC8, Level::Low, Speed::Low);      
+    let spedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);  
 
     // TODO: Initialize button inputs
+    let dir_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);    
+    let accel_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let brake_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
+
+    spawner.spawn(led::led_task(enable_led, spedometer_led).unwrap());
+    spawner.spawn(button::button_task(dir_button, accel_button, brake_button).unwrap());
+    spawner.spawn(minicar::state_machine_task().unwrap());
 
     // Init IWDG
-    let mut alt = false;
+    let mut wdg = IndependentWatchdog::new(p.IWDG, 1_000_000);
+wdg.unleash();
 
-    // Loop for petting IWDG
-    loop {
-        if !alt {
-            info!(".");
-        } else {
-            info!("..");
-        }
-        alt = !alt;
-        Timer::after_millis(100).await;
-    }
+loop {
+    wdg.pet();
+    Timer::after_millis(100).await;
+}
 }
 
 #[exception]
 unsafe fn HardFault(_info: &ExceptionFrame) -> ! {
     SCB::sys_reset(); // reset STM
 }
+
