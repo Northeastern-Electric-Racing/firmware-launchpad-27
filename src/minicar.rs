@@ -47,7 +47,7 @@ impl Minicar {
         }
     }
 
-    fn update_gear(&mut self, pedal_percent: f32) -> bool {
+    fn update_gear(&mut self, pedal_percent: f32) -> Option<Gear> {
         let new_gear = if pedal_percent < 25.0 {
             Gear1
         } else if pedal_percent < 50.0 {
@@ -58,9 +58,12 @@ impl Minicar {
             Gear4
         };
 
-        let changed = new_gear != self.gear;
+        if new_gear == self.gear {
+            return None;
+        }
+
         self.gear = new_gear;
-        changed
+        Some(new_gear)
     }
 
     fn velocity_increase(&self) -> i32 {
@@ -134,8 +137,8 @@ pub async fn state_machine_task() {
                 );
             }
             Either::Second(pedal_percent) => {
-                if minicar.update_gear(pedal_percent) {
-                    info!("gear = {} ({}%)", minicar.gear, pedal_percent);
+                if let Some(gear) =  minicar.update_gear(pedal_percent) {
+                    info!("gear = {} ({}%)", gear, pedal_percent);
                 }
             }
         }

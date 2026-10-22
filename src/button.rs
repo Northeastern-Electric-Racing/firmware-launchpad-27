@@ -31,7 +31,16 @@ pub async fn button_task(
             Either3::Third(_) => Brake,
         };
 
-        BUTTON_SIGNAL.signal(pressed);
-        Timer::after_millis(50).await;
+        Timer::after_millis(20).await; // debounce: let the switch contacts settle before confirming the press
+
+        let still_pressed = match pressed {
+            Direction => dir_button.is_low(),
+            Accelerate => accel_button.is_low(),
+            Brake => brake_button.is_low(),
+        };
+
+        if still_pressed {
+            BUTTON_SIGNAL.signal(pressed);
+        }
     }
 }
