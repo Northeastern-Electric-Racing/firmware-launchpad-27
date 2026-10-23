@@ -12,10 +12,10 @@ use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_stm32::adc::{Adc, AdcChannel, AdcConfig, Exten, SampleTime};
-use embassy_stm32::rcc::mux::Adcsel;
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::i2c::I2c;
+use embassy_stm32::rcc::mux::Adcsel;
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},

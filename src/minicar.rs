@@ -83,7 +83,8 @@ impl Minicar {
     }
 
     fn accelerate(&mut self) {
-        self.velocity = (self.velocity + self.velocity_increase()).clamp(-MAX_VELOCITY, MAX_VELOCITY);
+        self.velocity =
+            (self.velocity + self.velocity_increase()).clamp(-MAX_VELOCITY, MAX_VELOCITY);
     }
 
     fn brake(&mut self) {
@@ -186,7 +187,10 @@ pub async fn state_machine_task() {
                 if let Some(fault) = minicar.update_fault(temperature_c) {
                     SPEEDOMETER_SIGNAL.signal(minicar.speedometer_command());
                     if fault {
-                        warn!("FAULT: {} C is above {} C, velocity set to 0", temperature_c, MAX_TEMPERATURE_C);
+                        warn!(
+                            "FAULT: {} C is above {} C, velocity set to 0",
+                            temperature_c, MAX_TEMPERATURE_C
+                        );
                     } else {
                         info!("fault cleared: {} C", temperature_c);
                     }
