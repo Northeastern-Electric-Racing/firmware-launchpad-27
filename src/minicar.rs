@@ -10,12 +10,14 @@ use crate::{
         Gear::{Gear1, Gear2, Gear3, Gear4},
     },
     potentiometer::POTENTIOMETER_SIGNAL,
+    temp::TEMPERATURE_SIGNAL,
 };
-use defmt::info;
-use embassy_futures::select::{Either, select};
+use defmt::{info, warn};
+use embassy_futures::select::{Either3, select3};
 
 const MAX_VELOCITY: i32 = 100;
 const BRAKE_DECREASE: i32 = 20;
+const MAX_TEMPERATURE_C: f32 = 35.0;
 
 #[derive(PartialEq, Eq, Clone, Copy, defmt::Format)]
 enum CarDirection {
@@ -112,6 +114,34 @@ impl Minicar {
         }
     }
 
+    fn speedometer_command(&self) -> Option<u64> {
+        if self.fault {
+            None
+        } else {
+            Some(self.speedometer_toggle_ms())
+        }
+    }
+
+    fn update_fault(&mut self, temperature_c: f32) -> Option<bool> {
+        let new_fault = if temperature_c > MAX_TEMPERATURE_C {
+            true
+        } else if temperature_c < MAX_TEMPERATURE_C {
+            false
+        } else {
+            self.fault
+        };
+
+        if new_fault == self.fault {
+            return None;
+        }
+
+        self.fault = new_fault;
+        if new_fault {
+            self.velocity = 0;
+        }
+        Some(new_fault)
+    }
+
     fn handle_button(&mut self, button: ButtonType) {
         match button {
             Accelerate => self.accelerate(),
@@ -124,21 +154,42 @@ impl Minicar {
 #[embassy_executor::task]
 pub async fn state_machine_task() {
     let mut minicar = Minicar::new();
-    SPEEDOMETER_SIGNAL.signal(minicar.speedometer_toggle_ms());
+    SPEEDOMETER_SIGNAL.signal(minicar.speedometer_command());
 
     loop {
-        match select(BUTTON_SIGNAL.wait(), POTENTIOMETER_SIGNAL.wait()).await {
-            Either::First(button) => {
+        match select3(
+            BUTTON_SIGNAL.wait(),
+            POTENTIOMETER_SIGNAL.wait(),
+            TEMPERATURE_SIGNAL.wait(),
+        )
+        .await
+        {
+            Either3::First(button) => {
+                if minicar.fault {
+                    warn!("button ignored: car is faulted");
+                    continue;
+                }
+
                 minicar.handle_button(button);
-                SPEEDOMETER_SIGNAL.signal(minicar.speedometer_toggle_ms());
+                SPEEDOMETER_SIGNAL.signal(minicar.speedometer_command());
                 info!(
                     "velocity = {} m/s, gear = {}, direction = {}",
                     minicar.velocity, minicar.gear, minicar.direction
                 );
             }
-            Either::Second(pedal_percent) => {
-                if let Some(gear) =  minicar.update_gear(pedal_percent) {
+            Either3::Second(pedal_percent) => {
+                if let Some(gear) = minicar.update_gear(pedal_percent) {
                     info!("gear = {} ({}%)", gear, pedal_percent);
+                }
+            }
+            Either3::Third(temperature_c) => {
+                if let Some(fault) = minicar.update_fault(temperature_c) {
+                    SPEEDOMETER_SIGNAL.signal(minicar.speedometer_command());
+                    if fault {
+                        warn!("FAULT: {} C is above {} C, velocity set to 0", temperature_c, MAX_TEMPERATURE_C);
+                    } else {
+                        info!("fault cleared: {} C", temperature_c);
+                    }
                 }
             }
         }
