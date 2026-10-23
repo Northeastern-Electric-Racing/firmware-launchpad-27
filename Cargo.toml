@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 embassy-executor = { version = "0.10.0", features = ["defmt", "executor-thread", "executor-interrupt", "platform-cortex-m"] }
-embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32g474re", "memory-x", "unstable-pac", "exti", "time-driver-any"] }
+embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32g474re", "dual-bank", "memory-x", "unstable-pac", "exti", "time-driver-any"] }
 embassy-time = { version = "0.5.1", features = ["defmt"] }
 
 defmt = "1"
