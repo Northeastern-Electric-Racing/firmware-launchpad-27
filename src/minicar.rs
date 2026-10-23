@@ -1,22 +1,21 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
-use crate::{button::{
-    BUTTON_SIGNAL,
-    ButtonType::*,
-}, led::LightStates::*};
 use crate::{
+    button::{BUTTON_SIGNAL, ButtonType::*},
+    led::LightStates::*,
+    temp::TEMPERATURE_SIGNAL,
+};
+use crate::{
+    //temp::TEMPERATURE_SIGNAL,
+    led::LIGHT_SIGNAL,
     minicar::{
         CarDirection::{Forward, Reverse},
         Gear::{Gear1, Gear2, Gear3, Gear4},
     },
     potentiometer::POTENTIOMETER_SIGNAL,
-    //temp::TEMPERATURE_SIGNAL,
-    led::LIGHT_SIGNAL,
 };
 use defmt::warn;
-use embassy_futures::select::{Either, select};
-
+use embassy_futures::select::{Either3, select3};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -49,6 +48,9 @@ impl Minicar {
     }
 
     fn accelerate(&mut self) {
+        if self.fault {
+            return;
+        };
         match self.gear {
             Gear1 => {
                 self.velocity += 5;
@@ -69,6 +71,9 @@ impl Minicar {
     }
 
     fn brake(&mut self) {
+        if self.fault {
+            return;
+        };
         self.velocity -= 20;
         if self.velocity < 0 {
             self.velocity = 0;
@@ -98,68 +103,65 @@ impl Minicar {
     fn change_direction(&mut self) {
         if self.direction == Forward {
             self.direction = Reverse;
-        }
-        else {
+        } else {
             self.direction = Forward;
         }
+    }
+
+    fn check_fault(&mut self, temperature: f32) {
+        self.fault = temperature > 35_f32;
     }
 
     fn update_light_signals(&mut self) {
         match self.fault {
             true => {
                 LIGHT_SIGNAL.signal(Off);
+                self.velocity = 0;
             }
-            false => {
-                match self.direction {
-                    Forward => {
-                        match self.velocity {
-                            0 => {
-                                LIGHT_SIGNAL.signal(Stationary);
-                            }
-                            v if v < 25 => {
-                                LIGHT_SIGNAL.signal(Speed1);
-                            }
-                            v if v < 50 => {
-                                LIGHT_SIGNAL.signal(Speed2);
-                            }
-                            v if v < 75 => {
-                                LIGHT_SIGNAL.signal(Speed3);
-                            }
-                            v if v <= 100 => {
-                                LIGHT_SIGNAL.signal(Speed4);
-                            }
-                            v => {
-                                warn!("Improper velocity value {}", v);
-                            }
-                        }
+            false => match self.direction {
+                Forward => match self.velocity {
+                    0 => {
+                        LIGHT_SIGNAL.signal(Stationary);
                     }
-                    Reverse => {
-                        match self.velocity {
-                            0 => {
-                                LIGHT_SIGNAL.signal(StationaryReverse);
-                            }
-                            v if v < 25 => {
-                                LIGHT_SIGNAL.signal(Speed1Reverse);
-                            }
-                            v if v < 50 => {
-                                LIGHT_SIGNAL.signal(Speed2Reverse);
-                            }
-                            v if v < 75 => {
-                                LIGHT_SIGNAL.signal(Speed3Reverse);
-                            }
-                            v if v <= 100 => {
-                                LIGHT_SIGNAL.signal(Speed4Reverse);
-                            }
-                            v => {
-                                warn!("Improper velocity value {}", v);
-                            }
-                        }
+                    v if v < 25 => {
+                        LIGHT_SIGNAL.signal(Speed1);
                     }
-                }
-            }
+                    v if v < 50 => {
+                        LIGHT_SIGNAL.signal(Speed2);
+                    }
+                    v if v < 75 => {
+                        LIGHT_SIGNAL.signal(Speed3);
+                    }
+                    v if v <= 100 => {
+                        LIGHT_SIGNAL.signal(Speed4);
+                    }
+                    v => {
+                        warn!("Improper velocity value {}", v);
+                    }
+                },
+                Reverse => match self.velocity {
+                    0 => {
+                        LIGHT_SIGNAL.signal(StationaryReverse);
+                    }
+                    v if v < 25 => {
+                        LIGHT_SIGNAL.signal(Speed1Reverse);
+                    }
+                    v if v < 50 => {
+                        LIGHT_SIGNAL.signal(Speed2Reverse);
+                    }
+                    v if v < 75 => {
+                        LIGHT_SIGNAL.signal(Speed3Reverse);
+                    }
+                    v if v <= 100 => {
+                        LIGHT_SIGNAL.signal(Speed4Reverse);
+                    }
+                    v => {
+                        warn!("Improper velocity value {}", v);
+                    }
+                },
+            },
         }
     }
-    
 }
 
 #[embassy_executor::task]
@@ -168,25 +170,29 @@ pub async fn state_machine_task() {
     minicar.update_light_signals();
 
     loop {
-        match select (
+        match select3(
             BUTTON_SIGNAL.wait(),
             POTENTIOMETER_SIGNAL.wait(),
-        ).await {
-            Either::First(button_signal) => {
-                match button_signal {
-                    Accelerate => {
-                        minicar.accelerate();
-                    }
-                    Brake => {
-                        minicar.brake();
-                    }
-                    Direction => {
-                        minicar.change_direction();
-                    }
+            TEMPERATURE_SIGNAL.wait(),
+        )
+        .await
+        {
+            Either3::First(button_signal) => match button_signal {
+                Accelerate => {
+                    minicar.accelerate();
                 }
-            }
-            Either::Second(potentiometer_signal) => {
+                Brake => {
+                    minicar.brake();
+                }
+                Direction => {
+                    minicar.change_direction();
+                }
+            },
+            Either3::Second(potentiometer_signal) => {
                 minicar.change_gear(potentiometer_signal);
+            }
+            Either3::Third(temperature_value) => {
+                minicar.check_fault(temperature_value);
             }
         }
         minicar.update_light_signals();

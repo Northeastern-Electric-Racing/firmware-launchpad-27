@@ -1,4 +1,3 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
 use embassy_futures::select::{Either3, select3};
@@ -27,11 +26,7 @@ pub async fn button_task(
         let accel_event = accel_button.wait_for_falling_edge();
         let brake_event = brake_button.wait_for_falling_edge();
 
-        match select3(
-            dir_event,
-            accel_event,
-            brake_event,
-        ).await {
+        match select3(dir_event, accel_event, brake_event).await {
             Either3::First(_) => {
                 BUTTON_SIGNAL.signal(Direction);
             }
