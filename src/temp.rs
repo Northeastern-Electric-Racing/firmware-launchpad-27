@@ -14,7 +14,7 @@ pub static TEMPERATURE_SIGNAL: Signal<CriticalSectionRawMutex, f32> = Signal::ne
 
 #[embassy_executor::task]
 pub async fn temp_task(i2c: I2c<'static, Async, Master>) {
-    let mut sensor = match Sht3x::new(i2c, SHT30_ADDRESS, Delay).await {
+    let mut sensor = match Sht3x::new(i2c, SHT30_ADDRESS, Delay) {
         Ok(sensor) => sensor,
         Err(_) => {
             warn!("SHT30 not responding at 0x44");

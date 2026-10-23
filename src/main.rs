@@ -16,7 +16,6 @@ use embassy_stm32::rcc::mux::Adcsel;
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::i2c::I2c;
-use embassy_stm32::time::Hertz;
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
@@ -81,10 +80,9 @@ async fn main(spawner: Spawner) {
         p.I2C1,
         p.PB8,
         p.PB9,
-        I2cIrqs,
         p.DMA1_CH1,
         p.DMA1_CH2,
-        Hertz(100_000),
+        I2cIrqs,
         Default::default(),
     );
 
