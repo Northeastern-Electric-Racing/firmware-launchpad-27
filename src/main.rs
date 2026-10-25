@@ -5,7 +5,7 @@ mod button;
 mod potentiometer;
 mod minicar;
 mod led;
-//mod temp;
+mod temp;
 
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
@@ -26,6 +26,7 @@ use embassy_stm32::{
 };
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
+use embassy_stm32::i2c::I2c;
 
 use static_cell::StaticCell;
 
@@ -33,6 +34,7 @@ use button::button_task;
 use potentiometer::potentiometer_task;
 use minicar::state_machine_task;
 use led::led_task;
+use temp::temp_task;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
@@ -89,6 +91,16 @@ async fn main(spawner: Spawner) {
         Exten::DISABLED
     );
 
+    let i2c = I2c::new(
+        p.I2C2,
+        p.PB10,
+        p.PB11,
+        p.DMA1_CH7,
+        p.DMA1_CH2,
+        I2cIrqs,
+        Default::default(),
+    );
+
     spawner.spawn(button_task(reverse_button, drive_button, brake_button).unwrap());
 
     spawner.spawn(potentiometer_task(adc).unwrap());
@@ -96,6 +108,8 @@ async fn main(spawner: Spawner) {
     spawner.spawn(led_task(enable_led, speedometer_led).unwrap());
 
     spawner.spawn(state_machine_task().unwrap());
+
+    spawner.spawn(temp_task(i2c).unwrap());
 
     // Init IWDG
     let mut alt = false;

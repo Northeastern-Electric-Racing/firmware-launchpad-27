@@ -8,13 +8,15 @@ use embassy_time::Timer;
 
 // LED toggle interval in milliseconds
 pub static ENABLE_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
-pub static SPEEDOMETER_SIGNAL: Signal<CriticalSectionRawMutex, i32> = Signal::new();
+pub static SPEEDOMETER_SIGNAL: Signal<CriticalSectionRawMutex, (i32, bool)> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn led_task(mut enable_led: Output<'static>, mut speedometer_led: Output<'static>) {
     // TODO: LED Task
 
     let mut toggle_time = 2500;
+    let mut fault = false;
+    speedometer_led.set_low();
 
     loop {
         let event = select3(
@@ -28,22 +30,30 @@ pub async fn led_task(mut enable_led: Output<'static>, mut speedometer_led: Outp
                 enable_led.toggle();
             }
 
-            Either3::Second(velocity) => {
-                let speed = velocity.abs();
+            Either3::Second((velocity, car_fault)) => {
+                fault = car_fault;
 
-                toggle_time = if speed < 25 {
-                    2500
-                } else if speed < 50 {
-                    2000
-                } else if speed < 75 {
-                    1000
+                if fault {
+                    speedometer_led.set_low();
                 } else {
-                    500
-                };
+                    let speed = velocity.abs();
+
+                    toggle_time = if speed < 25 {
+                        2500
+                    } else if speed < 50 {
+                        2000
+                    } else if speed < 75 {
+                        1000
+                    } else {
+                        500
+                    };
+                }
             }
 
             Either3::Third(_) => {
-                speedometer_led.toggle();
+                if !fault {
+                    speedometer_led.toggle();
+                }
             }
         }
     }

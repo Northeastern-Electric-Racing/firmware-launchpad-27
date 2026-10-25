@@ -6,12 +6,13 @@ use crate::button::{
     ButtonType::{Accelerate, Brake, Direction},
 };
 use crate::potentiometer::POTENTIOMETER_SIGNAL;
+use crate::temp::TEMPERATURE_SIGNAL;
 use crate::led::{ENABLE_SIGNAL, SPEEDOMETER_SIGNAL};
 
 use self::CarDirection::{Forward, Reverse};
 use self::Gear::{Gear1, Gear2, Gear3, Gear4};
 
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select3, Either3};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -58,6 +59,10 @@ impl Minicar {
     }
 
     fn drive(&mut self) {
+        if self.fault {
+            return;
+        }
+
         let velocity_change = match self.gear {
             Gear1 => 5,
             Gear2 => 10,
@@ -85,6 +90,10 @@ impl Minicar {
     }
 
     fn brake(&mut self) {
+        if self.fault {
+            return;
+        }
+
         if self.velocity > 0 {
             self.velocity -=20;
 
@@ -111,26 +120,40 @@ impl Minicar {
             }
         }
     }
+
+    fn set_temperature(&mut self, temperature: f32) {
+        if temperature > 35.0 {
+            self.fault = true;
+            self.velocity = 0;
+        } else if temperature < 35.0 {
+            self.fault = false;
+        }
+    }
 }
 
 #[embassy_executor::task]
 pub async fn state_machine_task() {
     let mut minicar = Minicar::new();
 
+    let mut last_led_state = (minicar.velocity, minicar.fault);
+
     SPEEDOMETER_SIGNAL.signal(minicar.velocity);
 
     loop {
-        let event = select(
+        let event = select3(
             BUTTON_SIGNAL.wait(),
             POTENTIOMETER_SIGNAL.wait(),
+            TEMPERATURE_SIGNAL.wait(),
         ).await;
 
         match event {
-            Either::First(button) => {
+            Either3::First(button) => {
                 match button {
                     Accelerate => {
-                        minicar.drive();
-                        ENABLE_SIGNAL.signal(true);
+                        if !minicar.fault {
+                            minicar.drive();
+                            ENABLE_SIGNAL.signal(true);
+                        }
                     }
 
                     Brake => {
@@ -141,13 +164,22 @@ pub async fn state_machine_task() {
                         minicar.reverse();
                     }
                 }
-
-                SPEEDOMETER_SIGNAL.signal(minicar.velocity);
             }
 
-            Either::Second(percentage) => {
+            Either3::Second(percentage) => {
                 minicar.set_gear(percentage);
             }
+
+            Either3::Third(temperature) => {
+                minicar.set_temperature(temperature);
+            }
+        }
+
+        let led_state = (minicar.velocity, minicar.fault);
+
+        if led_state != last_led_state {
+            SPEEDOMETER_SIGNAL.signal(led_state);
+            last_led_state = led_state;
         }
     }
 }
