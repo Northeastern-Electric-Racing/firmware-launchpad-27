@@ -1,9 +1,10 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
+use embassy_futures::select::{Either3, select3};
 use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
+use embassy_time::Timer;
 
 use crate::button::ButtonType::{Accelerate, Brake, Direction};
 
@@ -27,5 +28,22 @@ pub async fn button_task(
         let brake_event = brake_button.wait_for_falling_edge();
 
         // TODO: Complete Button Task
+        let button_pressed = select3(dir_event, accel_event, brake_event).await;
+
+        match button_pressed {
+            Either3::First(_) => {
+                BUTTON_SIGNAL.signal(Direction);
+            }
+
+            Either3::Second(_) => {
+                BUTTON_SIGNAL.signal(Accelerate);
+            }
+
+            Either3::Third(_) => {
+                BUTTON_SIGNAL.signal(Brake);
+            }
+        }
+
+        Timer::after_millis(100).await;
     }
 }
