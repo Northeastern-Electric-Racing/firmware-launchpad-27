@@ -1,9 +1,7 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
+use embassy_futures::select::{Either3, select3};
 use embassy_stm32::gpio::Output;
-use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_futures::select::{select3, Either3};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
 // LED toggle interval in milliseconds
@@ -23,7 +21,8 @@ pub async fn led_task(mut enable_led: Output<'static>, mut speedometer_led: Outp
             ENABLE_SIGNAL.wait(),
             SPEEDOMETER_SIGNAL.wait(),
             Timer::after_millis(toggle_time),
-        ).await;
+        )
+        .await;
 
         match event {
             Either3::First(_) => {

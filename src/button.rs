@@ -1,10 +1,9 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
+use embassy_futures::select::{Either3, select3};
 use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_futures::select::{select3, Either3};
 use embassy_time::Timer;
 
 use crate::button::ButtonType::{Accelerate, Brake, Direction};

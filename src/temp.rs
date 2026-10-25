@@ -1,13 +1,9 @@
-
 use defmt::warn;
 use embassy_stm32::{
     i2c::{I2c, Master},
     mode::Async,
 };
-use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
-    signal::Signal,
-};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Delay, Timer};
 use embedded_sht3x::{Sht3x, Temperature};
 

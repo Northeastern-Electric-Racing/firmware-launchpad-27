@@ -1,4 +1,3 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
 use defmt::warn;
@@ -13,7 +12,7 @@ pub static POTENTIOMETER_SIGNAL: Signal<CriticalSectionRawMutex, f32> = Signal::
 #[embassy_executor::task]
 pub async fn potentiometer_task(mut adc: RingBufferedAdc<'static, ADC1>) {
     // TODO: Complete Potentiometer Task
-        let mut measurements = [0u16; SAMPLES];
+    let mut measurements = [0u16; SAMPLES];
 
     loop {
         adc.clear();

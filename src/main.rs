@@ -2,38 +2,32 @@
 #![no_main]
 
 mod button;
-mod potentiometer;
-mod minicar;
 mod led;
+mod minicar;
+mod potentiometer;
 mod temp;
 
 use cortex_m::peripheral::SCB;
 use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_stm32::gpio::{Level, Output, Pull, Speed};
+use embassy_stm32::adc::{Adc, AdcChannel, CONTINUOUS, Exten, SampleTime};
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
-use embassy_stm32::adc::{
-    Adc,
-    AdcChannel,
-    Exten,
-    SampleTime,
-    CONTINUOUS,
-};
+use embassy_stm32::gpio::{Level, Output, Pull, Speed};
+use embassy_stm32::i2c::I2c;
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
-use embassy_stm32::i2c::I2c;
 
 use static_cell::StaticCell;
 
 use button::button_task;
-use potentiometer::potentiometer_task;
-use minicar::state_machine_task;
 use led::led_task;
+use minicar::state_machine_task;
+use potentiometer::potentiometer_task;
 use temp::temp_task;
 
 bind_interrupts!(struct ExtiIrqs {
@@ -76,19 +70,19 @@ async fn main(spawner: Spawner) {
     let reverse_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
     let brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
 
-    //phase 2 
+    //phase 2
     let adc = Adc::new(p.ADC1);
     let adc_pin = p.PA3.degrade_adc();
 
     let dma_buffer = DMA_BUFFER.init([0u16; SAMPLES * 2]);
-    
+
     let adc = adc.into_ring_buffered(
         p.DMA2_CH0,
         dma_buffer,
         AdcIrqs,
         [(adc_pin, SampleTime::CYCLES480)].into_iter(),
         CONTINUOUS,
-        Exten::DISABLED
+        Exten::DISABLED,
     );
 
     let i2c = I2c::new(

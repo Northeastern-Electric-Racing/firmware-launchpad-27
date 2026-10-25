@@ -1,18 +1,17 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
 use crate::button::{
     BUTTON_SIGNAL,
     ButtonType::{Accelerate, Brake, Direction},
 };
+use crate::led::{ENABLE_SIGNAL, SPEEDOMETER_SIGNAL};
 use crate::potentiometer::POTENTIOMETER_SIGNAL;
 use crate::temp::TEMPERATURE_SIGNAL;
-use crate::led::{ENABLE_SIGNAL, SPEEDOMETER_SIGNAL};
 
 use self::CarDirection::{Forward, Reverse};
 use self::Gear::{Gear1, Gear2, Gear3, Gear4};
 
-use embassy_futures::select::{select3, Either3};
+use embassy_futures::select::{Either3, select3};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -65,7 +64,7 @@ impl Minicar {
             Gear1 => 5,
             Gear2 => 10,
             Gear3 => 20,
-            Gear4 => 35
+            Gear4 => 35,
         };
 
         match self.direction {
@@ -78,7 +77,7 @@ impl Minicar {
             }
         }
 
-        self.velocity = self.velocity.clamp(-100,100);
+        self.velocity = self.velocity.clamp(-100, 100);
     }
 
     fn brake(&mut self) {
@@ -87,7 +86,7 @@ impl Minicar {
         }
 
         if self.velocity > 0 {
-            self.velocity -=20;
+            self.velocity -= 20;
 
             if self.velocity < 0 {
                 self.velocity = 0;
@@ -136,27 +135,26 @@ pub async fn state_machine_task() {
             BUTTON_SIGNAL.wait(),
             POTENTIOMETER_SIGNAL.wait(),
             TEMPERATURE_SIGNAL.wait(),
-        ).await;
+        )
+        .await;
 
         match event {
-            Either3::First(button) => {
-                match button {
-                    Accelerate => {
-                        if !minicar.fault {
-                            minicar.drive();
-                            ENABLE_SIGNAL.signal(true);
-                        }
-                    }
-
-                    Brake => {
-                        minicar.brake();
-                    }
-
-                    Direction => {
-                        minicar.reverse();
+            Either3::First(button) => match button {
+                Accelerate => {
+                    if !minicar.fault {
+                        minicar.drive();
+                        ENABLE_SIGNAL.signal(true);
                     }
                 }
-            }
+
+                Brake => {
+                    minicar.brake();
+                }
+
+                Direction => {
+                    minicar.reverse();
+                }
+            },
 
             Either3::Second(percentage) => {
                 minicar.set_gear(percentage);
