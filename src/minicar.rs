@@ -44,8 +44,6 @@ impl Minicar {
         }
     }
 
-    // TODO: Complete the Minicar implementation!
-
     fn set_gear(&mut self, percentage: f32) {
         if percentage < 25.0 {
             self.gear = Gear1;
@@ -137,7 +135,7 @@ pub async fn state_machine_task() {
 
     let mut last_led_state = (minicar.velocity, minicar.fault);
 
-    SPEEDOMETER_SIGNAL.signal(minicar.velocity);
+    SPEEDOMETER_SIGNAL.signal(last_led_state);
 
     loop {
         let event = select3(
