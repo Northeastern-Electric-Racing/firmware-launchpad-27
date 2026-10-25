@@ -3,9 +3,18 @@ name = "firmwarelaunchpad-2026"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# Hardware-test modes. No feature selects the complete temperature-protected car.
+# When combined, blink takes precedence; adc includes the buttons test.
+blink = []
+# Isolated input/LED test; no ADC or temperature sensor needed.
+buttons = []
+# Add ADC/DMA diagnostics to the already-verified button test.
+adc = ["buttons"]
+
 [dependencies]
 embassy-executor = { version = "0.10.0", features = ["defmt", "executor-thread", "executor-interrupt", "platform-cortex-m"] }
-embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32f405zg", "memory-x", "unstable-pac", "exti", "time-driver-any"] }
+embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32g474re", "dual-bank", "memory-x", "unstable-pac", "exti", "time-driver-any", "time"] }
 embassy-time = { version = "0.5.1", features = ["defmt"] }
 
 defmt = "1"
@@ -17,5 +26,5 @@ embassy-futures = "0.1.2"
 lsm6dsv16x-rs = "2.1.0"
 embedded-hal-bus = { version = "0.3.0", features = ["async"] }
 embedded-hal-async = "1.0.0"
-embedded-sht3x = "0.2.0"
+embedded-sht3x = { version = "0.2.0", features = ["async"] }
 panic-probe = "1.0.0"
