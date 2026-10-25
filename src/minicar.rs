@@ -78,13 +78,7 @@ impl Minicar {
             }
         }
 
-        if self.velocity > 100 {
-            self.velocity = 100;
-        }
-
-        if self.velocity < -100 {
-            self.velocity = -100;
-        }
+        self.velocity = self.velocity.clamp(-100,100);
     }
 
     fn brake(&mut self) {
