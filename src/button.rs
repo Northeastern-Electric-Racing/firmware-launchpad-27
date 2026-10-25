@@ -36,17 +36,13 @@ pub async fn button_task(
 
         BUTTON_SIGNAL.signal(pressed);
 
-        // Debounce the press
         Timer::after_millis(50).await;
-
-        // Wait only for the pressed button to be released
         match pressed {
             Direction => dir_button.wait_for_high().await,
             Accelerate => accel_button.wait_for_high().await,
             Brake => brake_button.wait_for_high().await,
         }
 
-        // Debounce the release
         Timer::after_millis(50).await;
     }
 }
