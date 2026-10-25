@@ -8,6 +8,7 @@ use embassy_time::Timer;
 
 use crate::button::ButtonType::{Accelerate, Brake, Direction};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonType {
     Direction,
     Accelerate,
@@ -27,7 +28,6 @@ pub async fn button_task(
         let accel_event = accel_button.wait_for_falling_edge();
         let brake_event = brake_button.wait_for_falling_edge();
 
-        // TODO: Complete Button Task
         let pressed = match select3(dir_event, accel_event, brake_event).await {
             Either3::First(_) => Direction,
             Either3::Second(_) => Accelerate,
@@ -36,10 +36,17 @@ pub async fn button_task(
 
         BUTTON_SIGNAL.signal(pressed);
 
+        // Debounce the press
         Timer::after_millis(50).await;
-        dir_button.wait_for_high().await;
-        accel_button.wait_for_high().await;
-        brake_button.wait_for_high().await;
+
+        // Wait only for the pressed button to be released
+        match pressed {
+            Direction => dir_button.wait_for_high().await,
+            Accelerate => accel_button.wait_for_high().await,
+            Brake => brake_button.wait_for_high().await,
+        }
+
+        // Debounce the release
         Timer::after_millis(50).await;
     }
 }
