@@ -10,6 +10,7 @@ use embassy_stm32::adc::{Adc, AdcChannel, CONTINUOUS, RingBufferedAdc, SampleTim
 use embassy_stm32::exti::InterruptHandler;
 use embassy_stm32::gpio::Pull::{self, Up};
 use embassy_stm32::gpio::{Level, Speed};
+use embassy_stm32::i2c::{self, I2c};
 use embassy_stm32::peripherals::{DMA2, EXTI8, EXTI9};
 use embassy_stm32::timer::low_level::OutputCompareMode::Toggle;
 use embassy_stm32::{
@@ -31,10 +32,10 @@ bind_interrupts!(struct ExtiIrqs {
 });
 
 bind_interrupts!(struct I2cIrqs {
-    DMA1_STREAM2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
+    DMA1_STREAM0 => dma::InterruptHandler<peripherals::DMA1_CH0>;
     DMA1_STREAM7 => dma::InterruptHandler<peripherals::DMA1_CH7>;
-    I2C2_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C2>;
-    I2C2_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C2>;
+    I2C1_EV => embassy_stm32::i2c::EventInterruptHandler<peripherals::I2C1>;
+    I2C1_ER => embassy_stm32::i2c::ErrorInterruptHandler<peripherals::I2C1>;
 });
 
 bind_interrupts!(struct AdcIrqs {
@@ -76,10 +77,21 @@ async fn main(spawner: Spawner) {
         embassy_stm32::adc::Exten::DISABLED,
     );
 
+    let i2c = I2c::new(
+        p.I2C1,
+        p.PB6,      // SCL
+        p.PB7,      // SDA
+        p.DMA1_CH7, // TX DMA
+        p.DMA1_CH0, // RX DMA
+        I2cIrqs,
+        i2c::Config::default(),
+    );
+
     spawner.spawn(button::button_task(dir_button, drive_button, brake_button).unwrap());
     spawner.spawn(led::led_task(enable_led, speedometer_led).unwrap());
     spawner.spawn(potentiometer::potentiometer_task(adc).unwrap());
     spawner.spawn(minicar::state_machine_task().unwrap());
+    spawner.spawn(temp::temp_task(i2c).unwrap());
 }
 
 #[exception]
