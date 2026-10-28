@@ -1,22 +1,26 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
-use crate::button::{
-    BUTTON_SIGNAL,
-    ButtonType::{Accelerate, Brake, Direction},
-};
 use crate::{
     button::ButtonType,
     minicar::{
         CarDirection::{Forward, Reverse},
         Gear::{Gear1, Gear2, Gear3, Gear4},
     },
-    potentiometer::POTENTIOMETER_SIGNAL,
+    //potentiometer::POTENTIOMETER_SIGNAL,
     temp::TEMPERATURE_SIGNAL,
 };
-use embassy_futures::select::{Either4, select4};
+use crate::{
+    button::{
+        BUTTON_SIGNAL,
+        ButtonType::{Accelerate, Brake, Direction},
+    },
+    led::{FAULT_SIGNAL, TOGGLE_TIME_SIGNAL},
+    potentiometer::POTENTIOMETER_SIGNAL,
+};
+use defmt::info;
+use embassy_futures::select::{Either3, select3};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum CarDirection {
@@ -47,15 +51,118 @@ impl Minicar {
             fault: false,
         }
     }
+    const MAX_VELOCITY: i32 = 100;
+    const BREAK_STEP: i32 = 20;
+    const FAULT_TEMP_C: f32 = 35.0;
 
-    // TODO: Complete the Minicar implementation!
+    fn set_gear(&mut self, percent: f32) {
+        if percent < 25.0 {
+            self.gear = Gear1;
+        } else if percent < 50.0 {
+            self.gear = Gear2;
+        } else if percent < 75.0 {
+            self.gear = Gear3;
+        } else {
+            self.gear = Gear4;
+        }
+    }
+    fn velocity_increase(&self) -> i32 {
+        let increase = match self.gear {
+            Gear1 => 5,
+            Gear2 => 10,
+            Gear3 => 20,
+            Gear4 => 35,
+        };
+        if self.direction == Reverse {
+            return increase * -1;
+        }
+        return increase;
+    }
+    fn handle_button(&mut self, button: ButtonType) {
+        if self.fault {
+            return;
+        }
+        match button {
+            Accelerate => {
+                self.velocity = self.velocity + self.velocity_increase();
+                self.velocity = self.velocity.clamp(-Self::MAX_VELOCITY, Self::MAX_VELOCITY);
+            }
+            Direction => {
+                if self.direction == Reverse {
+                    self.direction = Forward;
+                } else {
+                    self.direction = Reverse;
+                }
+            }
+            Brake => {
+                if self.velocity > 0 {
+                    self.velocity = self.velocity - Self::BREAK_STEP;
+                    if self.velocity < 0 {
+                        self.velocity = 0;
+                    }
+                } else if self.velocity < 0 {
+                    self.velocity = self.velocity + Self::BREAK_STEP;
+                    if self.velocity > 0 {
+                        self.velocity = 0;
+                    }
+                }
+            }
+        }
+    }
+    fn handle_time(&self) -> Duration {
+        let speed: i32 = self.velocity.abs();
+        let ms: u64 = match speed {
+            s if s < 25 => 2500,
+            s if s < 50 => 2000,
+            s if s < 75 => 1000,
+            _ => 500,
+        };
+        Duration::from_millis(ms)
+    }
+    fn handle_temperature(&mut self, celsius: f32) {
+        self.fault = celsius > Self::FAULT_TEMP_C;
+        if self.fault {
+            self.velocity = 0;
+        }
+    }
 }
+
+// TODO: Complete the Minicar implementation!
 
 #[embassy_executor::task]
 pub async fn state_machine_task() {
     let mut minicar = Minicar::new();
+    let mut last_toggle_time = minicar.handle_time();
 
     loop {
-        // TODO: Complete State Machine Task
+        match select3(
+            BUTTON_SIGNAL.wait(),
+            POTENTIOMETER_SIGNAL.wait(),
+            TEMPERATURE_SIGNAL.wait(),
+        )
+        .await
+        {
+            Either3::First(button) => {
+                minicar.handle_button(button);
+                info!("{} -> velocity {}", button, minicar.velocity);
+            }
+            Either3::Second(percent) => {
+                minicar.set_gear(percent);
+            }
+            Either3::Third(celsius) => {
+                let was_faulted = minicar.fault;
+                minicar.handle_temperature(celsius);
+                if minicar.fault != was_faulted {
+                    FAULT_SIGNAL.signal(minicar.fault);
+                    info!("fault: {}", minicar.fault);
+                }
+            }
+        }
+
+        let toggle_time = minicar.handle_time();
+        if toggle_time != last_toggle_time {
+            TOGGLE_TIME_SIGNAL.signal(toggle_time);
+            last_toggle_time = toggle_time;
+        }
     }
 }
