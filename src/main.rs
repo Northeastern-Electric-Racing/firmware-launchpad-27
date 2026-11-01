@@ -1,17 +1,34 @@
 #![no_std]
 #![no_main]
 
+mod button;
+mod led;
+mod minicar;
+mod potentiometer;
+mod temp;
+
 use cortex_m::peripheral::SCB;
+use cortex_m::singleton;
 use cortex_m_rt::{ExceptionFrame, exception};
 use defmt::info;
 use embassy_executor::Spawner;
+use embassy_stm32::adc::{Adc, AdcChannel, CONTINUOUS, Exten, SampleTime};
+use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::exti::InterruptHandler;
+use embassy_stm32::gpio::{Level, Output, Pull, Speed};
+use embassy_stm32::i2c::I2c;
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
 };
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
+
+use crate::button::button_task;
+use crate::led::led_task;
+use crate::minicar::state_machine_task;
+use crate::potentiometer::potentiometer_task;
+use crate::temp::temp_task;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
@@ -41,8 +58,40 @@ async fn main(spawner: Spawner) {
     info!("Welcome to Firmware Launchpad!");
 
     // TODO: Initialize LED outputs
+    let enable_led = Output::new(p.PC8, Level::Low, Speed::Low);
+    let spedometer_led = Output::new(p.PC9, Level::Low, Speed::Low);
 
     // TODO: Initialize button inputs
+    let dir_button = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up, ExtiIrqs);
+    let accel_button = ExtiInput::new(p.PA8, p.EXTI8, Pull::Up, ExtiIrqs);
+    let brake_button = ExtiInput::new(p.PA9, p.EXTI9, Pull::Up, ExtiIrqs);
+
+    let adc_buffer = singleton!(: [u16; 32] = [0; 32]).unwrap();
+    let adc = Adc::new(p.ADC1);
+    let pot = adc.into_ring_buffered(
+        p.DMA2_CH0,
+        adc_buffer,
+        AdcIrqs,
+        [(p.PA3.degrade_adc(), SampleTime::CYCLES480)].into_iter(),
+        CONTINUOUS,
+        Exten::DISABLED,
+    );
+
+    let i2c = I2c::new(
+        p.I2C2,
+        p.PB10,
+        p.PB11,
+        p.DMA1_CH7,
+        p.DMA1_CH2,
+        I2cIrqs,
+        embassy_stm32::i2c::Config::default(),
+    );
+
+    spawner.spawn(button_task(dir_button, accel_button, brake_button).unwrap());
+    spawner.spawn(potentiometer_task(pot).unwrap());
+    spawner.spawn(led_task(enable_led, spedometer_led).unwrap());
+    spawner.spawn(state_machine_task().unwrap());
+    spawner.spawn(temp_task(i2c).unwrap());
 
     // Init IWDG
     let mut alt = false;
