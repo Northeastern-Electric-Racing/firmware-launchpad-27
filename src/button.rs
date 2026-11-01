@@ -4,7 +4,6 @@ use embassy_futures::select::{Either3, select3};
 use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_time::Timer;
 
 use crate::button::ButtonType::{Accelerate, Brake, Direction};
 
@@ -35,14 +34,5 @@ pub async fn button_task(
         };
 
         BUTTON_SIGNAL.signal(pressed);
-
-        Timer::after_millis(50).await;
-        match pressed {
-            Direction => dir_button.wait_for_high().await,
-            Accelerate => accel_button.wait_for_high().await,
-            Brake => brake_button.wait_for_high().await,
-        }
-
-        Timer::after_millis(50).await;
     }
 }
