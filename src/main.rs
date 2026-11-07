@@ -122,6 +122,7 @@ async fn main(spawner: Spawner) {
 }
 
 // Keep the handler independent of the cortex-m-rt exception proc-macro.
+#[allow(non_snake_case)]
 #[unsafe(no_mangle)]
 unsafe fn HardFault(_info: &ExceptionFrame) -> ! {
     SCB::sys_reset(); // reset STM
