@@ -12,9 +12,9 @@ use crate::{
         Gear::{Gear1, Gear2, Gear3, Gear4},
     },
     potentiometer::POTENTIOMETER_SIGNAL,
-    // temp::TEMPERATURE_SIGNAL, // TODO: re-enable in Phase 4
+    temp::TEMPERATURE_SIGNAL,
 };
-use embassy_futures::select::{Either, Either4, select, select4};
+use embassy_futures::select::{Either3, Either4, select3, select4};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
@@ -112,23 +112,39 @@ impl Minicar {
 
 const BRAKE_STEP: i32 = 20;
 const MAX_VELOCITY: i32 = 100;
+const MAX_TEMPERATURE: f32 = 35.0;
 
 // Latest car speed (m/s, always positive) for the LED task to display
 pub static SPEED_SIGNAL: Signal<CriticalSectionRawMutex, i32> = Signal::new();
+
+// Whether the car is currently faulted (overheated), for the LED task
+pub static FAULT_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn state_machine_task() {
     let mut minicar = Minicar::new();
 
     loop {
-        // Wait for whichever input arrives first: a button press or a new pot reading
-        match select(BUTTON_SIGNAL.wait(), POTENTIOMETER_SIGNAL.wait()).await {
-            Either::First(button) => match button {
+        // Wait for whichever input arrives first: a button press, a pot reading or a temperature reading
+        match select3(
+            BUTTON_SIGNAL.wait(),
+            POTENTIOMETER_SIGNAL.wait(),
+            TEMPERATURE_SIGNAL.wait(),
+        )
+        .await
+        {
+            Either3::First(button) => match button {
                 Accelerate => minicar.accelerate(),
                 Brake => minicar.brake(),
                 Direction => minicar.reverse(),
             },
-            Either::Second(pot) => minicar.set_gear_from_pot(pot),
+            Either3::Second(pot) => minicar.set_gear_from_pot(pot),
+            // Fault while overheated; clears automatically once the temperature drops back down
+            Either3::Third(temp) => {
+                let faulted = temp > MAX_TEMPERATURE;
+                minicar.set_fault(faulted);
+                FAULT_SIGNAL.signal(faulted);
+            }
         }
 
         SPEED_SIGNAL.signal(minicar.velocity.abs());

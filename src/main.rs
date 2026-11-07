@@ -20,6 +20,8 @@ use embassy_stm32::adc::CONTINUOUS;
 
 use embassy_stm32::exti::{self, InterruptHandler};
 use embassy_stm32::gpio::Pull::Up;
+use embassy_stm32::i2c::{self, I2c};
+use embassy_stm32::time::Hertz;
 use embassy_stm32::{
     Config, bind_interrupts, dma, interrupt,
     peripherals::{self},
@@ -32,6 +34,7 @@ use button::button_task;
 use led::led_task;
 use minicar::state_machine_task;
 use potentiometer::potentiometer_task;
+use temp::temp_task;
 
 bind_interrupts!(struct ExtiIrqs {
     EXTI9_5 => InterruptHandler<interrupt::typelevel::EXTI9_5>;
@@ -81,11 +84,27 @@ async fn main(spawner: Spawner) {
         Exten::DISABLED,
     );
 
+    // Initialize the I2C bus for the SHT30 temperature sensor (SCL = PC4, SDA = PF0)
+    let mut i2c_config = i2c::Config::default();
+    i2c_config.frequency = Hertz::khz(100);
+    let i2c = I2c::new(
+        p.I2C2,
+        p.PC4,
+        p.PF0,
+        p.DMA1_CH2,
+        p.DMA1_CH7,
+        I2cIrqs,
+        i2c_config,
+    );
+
     // Spawn Phase 3 tasks
     spawner.spawn(button_task(reverse, drive, brake).unwrap());
     spawner.spawn(potentiometer_task(ring_adc).unwrap());
     spawner.spawn(state_machine_task().unwrap());
     spawner.spawn(led_task(enable_led, speedometer_led).unwrap());
+
+    // Spawn Phase 4 tasks
+    spawner.spawn(temp_task(i2c).unwrap());
 
     // Init IWDG
     let mut alt = false;
