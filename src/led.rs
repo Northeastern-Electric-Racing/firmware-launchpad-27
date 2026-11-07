@@ -1,4 +1,3 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 3 ***
 
 use embassy_futures::select::{Either3, select3};

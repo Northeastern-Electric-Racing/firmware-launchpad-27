@@ -14,12 +14,13 @@ use embassy_executor::Spawner;
 use embassy_stm32::adc::Adc;
 use embassy_stm32::adc::AdcChannel;
 use embassy_stm32::adc::AdcConfig;
+use embassy_stm32::adc::CONTINUOUS;
 use embassy_stm32::adc::Exten;
 use embassy_stm32::adc::SampleTime;
-use embassy_stm32::adc::CONTINUOUS;
 
 use embassy_stm32::exti::{self, InterruptHandler};
 use embassy_stm32::gpio::Pull::Up;
+use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_stm32::i2c::{self, I2c};
 use embassy_stm32::time::Hertz;
 use embassy_stm32::{
@@ -28,7 +29,6 @@ use embassy_stm32::{
 };
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
-use embassy_stm32::gpio::{Output,Level,Speed};
 
 use button::button_task;
 use led::led_task;
@@ -88,13 +88,7 @@ async fn main(spawner: Spawner) {
     let mut i2c_config = i2c::Config::default();
     i2c_config.frequency = Hertz::khz(100);
     let i2c = I2c::new(
-        p.I2C2,
-        p.PC4,
-        p.PF0,
-        p.DMA1_CH2,
-        p.DMA1_CH7,
-        I2cIrqs,
-        i2c_config,
+        p.I2C2, p.PC4, p.PF0, p.DMA1_CH2, p.DMA1_CH7, I2cIrqs, i2c_config,
     );
 
     // Spawn Phase 3 tasks

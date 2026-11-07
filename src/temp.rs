@@ -1,4 +1,3 @@
-
 // *** IGNORE THIS FILE UNTIL FIRMWARE LAUNCHPAD: PHASE 4 ***
 
 use defmt::warn;
